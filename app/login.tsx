@@ -1,0 +1,102 @@
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { getApiErrorMessage } from '@/lib/api';
+import { useAuth } from '@/providers/auth-provider';
+
+const PRIMARY = '#1B5E20';
+
+export default function LoginScreen() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const { login } = useAuth();
+
+  const masuk = () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert('Data belum lengkap', 'Email dan password wajib diisi.');
+      return;
+    }
+
+    setSubmitting(true);
+    void login(email.trim(), password)
+      .catch((error: unknown) => {
+        const message = getApiErrorMessage(error, 'Tidak dapat terhubung ke server.');
+        Alert.alert('Login gagal', message);
+      })
+      .finally(() => setSubmitting(false));
+  };
+
+  return (
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={styles.card}>
+        <Text style={styles.logo}>Sawit Care</Text>
+        <Text style={styles.title}>Selamat Datang</Text>
+        <Text style={styles.subtitle}>Masuk untuk memantau kesehatan kebun Anda.</Text>
+
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          autoCapitalize="none"
+          autoComplete="email"
+          keyboardType="email-address"
+          onChangeText={setEmail}
+          placeholder="Masukkan email"
+          placeholderTextColor="#9E9E9E"
+          style={styles.input}
+          value={email}
+        />
+
+        <Text style={styles.label}>Password</Text>
+        <View style={styles.passwordRow}>
+          <TextInput
+            autoCapitalize="none"
+            autoComplete="password"
+            onChangeText={setPassword}
+            placeholder="Masukkan password"
+            placeholderTextColor="#9E9E9E"
+            secureTextEntry={!showPassword}
+            style={styles.passwordInput}
+            value={password}
+          />
+          <Pressable accessibilityLabel={showPassword ? 'Sembunyikan password' : 'Tampilkan password'} onPress={() => setShowPassword((visible) => !visible)} style={styles.passwordToggle}>
+            <Text style={styles.passwordToggleText}>{showPassword ? 'Sembunyikan' : 'Lihat'}</Text>
+          </Pressable>
+        </View>
+
+        <Pressable disabled={submitting} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed, submitting && styles.disabled]} onPress={masuk}>
+          {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Masuk</Text>}
+        </Pressable>
+
+        <View style={styles.footerRow}>
+          <Text style={styles.footerText}>Belum punya akun? </Text>
+          <Pressable onPress={() => router.push('/register' as never)}>
+            <Text style={styles.link}>Daftar di sini</Text>
+          </Pressable>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { backgroundColor: '#F5F5F5', flex: 1, justifyContent: 'center', padding: 20 },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 22 },
+  logo: { color: PRIMARY, fontSize: 30, fontWeight: '800', textAlign: 'center' },
+  title: { color: '#212121', fontSize: 24, fontWeight: '800', marginTop: 22, textAlign: 'center' },
+  subtitle: { color: '#757575', fontSize: 14, lineHeight: 20, marginTop: 8, textAlign: 'center' },
+  label: { color: '#424242', fontSize: 14, fontWeight: '700', marginBottom: 7, marginTop: 22 },
+  input: { borderColor: '#D6D6D6', borderRadius: 10, borderWidth: 1, color: '#212121', fontSize: 15, minHeight: 52, paddingHorizontal: 14 },
+  passwordRow: { alignItems: 'center', borderColor: '#D6D6D6', borderRadius: 10, borderWidth: 1, flexDirection: 'row' },
+  passwordInput: { color: '#212121', flex: 1, fontSize: 15, minHeight: 52, paddingHorizontal: 14 },
+  passwordToggle: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
+  passwordToggleText: { color: PRIMARY, fontSize: 13, fontWeight: '700' },
+  primaryButton: { alignItems: 'center', backgroundColor: PRIMARY, borderRadius: 10, justifyContent: 'center', marginTop: 26, minHeight: 52 },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  footerRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 22 },
+  footerText: { color: '#757575', fontSize: 14 },
+  link: { color: PRIMARY, fontSize: 14, fontWeight: '800' },
+  pressed: { opacity: 0.72 },
+  disabled: { opacity: 0.6 },
+});

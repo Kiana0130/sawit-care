@@ -1,0 +1,1 @@
+"""Sawit Care database migrations."""

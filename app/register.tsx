@@ -1,8 +1,10 @@
-import { router } from 'expo-router';
+import { Link } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { getApiErrorMessage } from '@/lib/api';
+import { showMessage } from '@/lib/feedback';
 import { useAuth } from '@/providers/auth-provider';
 
 const PRIMARY = '#1B5E20';
@@ -18,27 +20,23 @@ export default function RegisterScreen() {
   const { register } = useAuth();
 
   const daftar = () => {
-    if (!nama.trim() || !email.trim() || !password.trim() || !konfirmasiPassword.trim()) {
-      Alert.alert('Data belum lengkap', 'Nama, email, password, dan konfirmasi password wajib diisi.');
+    if (!nama.trim() || !email.trim() || !password || !konfirmasiPassword) {
+      showMessage('Data belum lengkap', 'Nama, email, password, dan konfirmasi password wajib diisi.');
       return;
     }
-
     if (password !== konfirmasiPassword) {
-      Alert.alert('Registrasi gagal', 'Password dan konfirmasi password tidak sama.');
+      showMessage('Registrasi gagal', 'Password dan konfirmasi password tidak sama.');
       return;
     }
-
     if (password.length < 12) {
-      Alert.alert('Registrasi gagal', 'Password minimal 12 karakter.');
+      showMessage('Registrasi gagal', 'Password minimal 12 karakter.');
       return;
     }
 
     setSubmitting(true);
     void register(nama.trim(), email.trim(), password)
-      .catch((error: unknown) => {
-        const message = getApiErrorMessage(error, 'Tidak dapat terhubung ke server.');
-        Alert.alert('Registrasi gagal', message);
-      })
+      .then(() => showMessage('Pendaftaran berhasil', 'Akun berhasil dibuat. Anda sudah masuk ke Sawit Care.'))
+      .catch((error: unknown) => showMessage('Registrasi gagal', getApiErrorMessage(error, 'Tidak dapat terhubung ke server.')))
       .finally(() => setSubmitting(false));
   };
 
@@ -50,21 +48,21 @@ export default function RegisterScreen() {
         <Text style={styles.subtitle}>Daftarkan diri Anda untuk mulai merawat kebun.</Text>
 
         <Text style={styles.label}>Nama Lengkap</Text>
-        <TextInput onChangeText={setNama} placeholder="Masukkan nama lengkap" placeholderTextColor="#9E9E9E" style={styles.input} value={nama} />
+        <TextInput autoComplete="name" onChangeText={setNama} placeholder="Masukkan nama lengkap" placeholderTextColor="#9E9E9E" style={styles.input} value={nama} />
         <Text style={styles.label}>Email</Text>
         <TextInput autoCapitalize="none" autoComplete="email" keyboardType="email-address" onChangeText={setEmail} placeholder="Masukkan email" placeholderTextColor="#9E9E9E" style={styles.input} value={email} />
         <Text style={styles.label}>Password</Text>
         <View style={styles.passwordRow}>
-          <TextInput autoCapitalize="none" secureTextEntry={!showPassword} onChangeText={setPassword} placeholder="Masukkan password" placeholderTextColor="#9E9E9E" style={styles.passwordInput} value={password} />
+          <TextInput autoCapitalize="none" autoComplete="new-password" onChangeText={setPassword} placeholder="Masukkan password (min. 12 karakter)" placeholderTextColor="#9E9E9E" secureTextEntry={!showPassword} style={styles.passwordInput} value={password} />
           <Pressable accessibilityLabel={showPassword ? 'Sembunyikan password' : 'Tampilkan password'} onPress={() => setShowPassword((visible) => !visible)} style={styles.passwordToggle}>
-            <Text style={styles.passwordToggleText}>{showPassword ? 'Sembunyikan' : 'Lihat'}</Text>
+            {showPassword ? <SymbolView name={{ ios: 'eye.slash', android: 'visibility_off', web: 'visibility_off' }} tintColor={PRIMARY} size={19} /> : <SymbolView name={{ ios: 'eye', android: 'visibility', web: 'visibility' }} tintColor={PRIMARY} size={19} />}
           </Pressable>
         </View>
         <Text style={styles.label}>Konfirmasi Password</Text>
         <View style={styles.passwordRow}>
-          <TextInput autoCapitalize="none" secureTextEntry={!showConfirmation} onChangeText={setKonfirmasiPassword} placeholder="Ulangi password" placeholderTextColor="#9E9E9E" style={styles.passwordInput} value={konfirmasiPassword} />
+          <TextInput autoCapitalize="none" autoComplete="new-password" onChangeText={setKonfirmasiPassword} placeholder="Ulangi password" placeholderTextColor="#9E9E9E" secureTextEntry={!showConfirmation} style={styles.passwordInput} value={konfirmasiPassword} />
           <Pressable accessibilityLabel={showConfirmation ? 'Sembunyikan konfirmasi password' : 'Tampilkan konfirmasi password'} onPress={() => setShowConfirmation((visible) => !visible)} style={styles.passwordToggle}>
-            <Text style={styles.passwordToggleText}>{showConfirmation ? 'Sembunyikan' : 'Lihat'}</Text>
+            {showConfirmation ? <SymbolView name={{ ios: 'eye.slash', android: 'visibility_off', web: 'visibility_off' }} tintColor={PRIMARY} size={19} /> : <SymbolView name={{ ios: 'eye', android: 'visibility', web: 'visibility' }} tintColor={PRIMARY} size={19} />}
           </Pressable>
         </View>
 
@@ -73,7 +71,7 @@ export default function RegisterScreen() {
         </Pressable>
         <View style={styles.footerRow}>
           <Text style={styles.footerText}>Sudah punya akun? </Text>
-          <Pressable onPress={() => router.replace('/login' as never)}><Text style={styles.link}>Login di sini</Text></Pressable>
+          <Link href={{ pathname: '/login' }} asChild><Pressable><Text style={styles.link}>Login di sini</Text></Pressable></Link>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -90,8 +88,7 @@ const styles = StyleSheet.create({
   input: { borderColor: '#D6D6D6', borderRadius: 10, borderWidth: 1, color: '#212121', fontSize: 15, minHeight: 48, paddingHorizontal: 14 },
   passwordRow: { alignItems: 'center', borderColor: '#D6D6D6', borderRadius: 10, borderWidth: 1, flexDirection: 'row' },
   passwordInput: { color: '#212121', flex: 1, fontSize: 15, minHeight: 48, paddingHorizontal: 14 },
-  passwordToggle: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 },
-  passwordToggleText: { color: PRIMARY, fontSize: 13, fontWeight: '700' },
+  passwordToggle: { alignItems: 'center', justifyContent: 'center', minHeight: 44, paddingHorizontal: 12 },
   primaryButton: { alignItems: 'center', backgroundColor: PRIMARY, borderRadius: 10, justifyContent: 'center', marginTop: 24, minHeight: 52 },
   primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   footerRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 },

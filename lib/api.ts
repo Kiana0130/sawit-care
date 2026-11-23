@@ -1,6 +1,6 @@
 import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from '@/lib/auth-storage';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000/v1';
+const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, '');
 
 export type User = {
   id: string;
@@ -46,6 +46,9 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
     EMAIL_ALREADY_EXISTS: 'Email sudah terdaftar. Silakan gunakan email lain.',
     UNAUTHENTICATED: 'Sesi Anda sudah berakhir. Silakan login kembali.',
     VALIDATION_ERROR: 'Data yang dimasukkan belum valid.',
+    INVALID_EMAIL: 'Format email tidak valid. Periksa kembali email Anda.',
+    INVALID_PASSWORD: 'Password belum memenuhi ketentuan.',
+    INVALID_INPUT: 'Data yang dimasukkan belum valid.',
   };
   return messages[error.code] ?? error.message ?? fallback;
 }
@@ -74,7 +77,13 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
-  const response = await fetch(`${API_URL}${path}`, { ...init, headers });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL ?? 'http://localhost:8000/v1'}${path}`, { ...init, headers });
+  } catch {
+    throw new ApiError(0, 'NETWORK_ERROR', 'Tidak dapat terhubung ke server. Periksa alamat API dan koneksi jaringan.');
+  }
+
   if (response.ok) {
     if (response.status === 204) return undefined as T;
     return (await response.json()) as T;
@@ -88,25 +97,37 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
   throw await parseError(response);
 }
 
+let refreshPromise: Promise<boolean> | null = null;
+
 async function refreshSession(): Promise<boolean> {
   const refreshToken = await getRefreshToken();
   if (!refreshToken) return false;
 
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const response = await fetch(`${API_URL ?? 'http://localhost:8000/v1'}/auth/refresh`, {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+        if (!response.ok) {
+          await clearTokens();
+          return false;
+        }
+        const tokens = (await response.json()) as TokenResponse;
+        await saveTokens(tokens.access_token, tokens.refresh_token);
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+  }
+
   try {
-    const response = await fetch(`${API_URL}/auth/refresh`, {
-      method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-    if (!response.ok) {
-      await clearTokens();
-      return false;
-    }
-    const tokens = (await response.json()) as TokenResponse;
-    await saveTokens(tokens.access_token, tokens.refresh_token);
-    return true;
-  } catch {
-    return false;
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
   }
 }
 
@@ -135,13 +156,18 @@ export async function getProfile(): Promise<User> {
 export async function logout(): Promise<void> {
   const accessToken = await getAccessToken();
   try {
-    const response = await fetch(`${API_URL}/auth/logout`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL ?? 'http://localhost:8000/v1'}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+      });
+    } catch {
+      return;
+    }
     if (!response.ok && response.status !== 401) throw await parseError(response);
   } finally {
     await clearTokens();

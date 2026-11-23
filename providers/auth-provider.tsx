@@ -1,5 +1,6 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { PropsWithChildren } from 'react';
 import { router } from 'expo-router';
-import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { getProfile, login as apiLogin, logout as apiLogout, register as apiRegister, User } from '@/lib/api';
 import { clearTokens, getAccessToken } from '@/lib/auth-storage';
@@ -48,9 +49,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
       router.replace('/(tabs)');
     },
     async logout() {
+      await apiLogout();
       setUser(null);
       router.replace('/login');
-      void apiLogout().catch(() => undefined);
     },
   }), [loading, user]);
 

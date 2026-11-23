@@ -1,8 +1,10 @@
-import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Link } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 
 import { getApiErrorMessage } from '@/lib/api';
+import { showMessage } from '@/lib/feedback';
 import { useAuth } from '@/providers/auth-provider';
 
 const PRIMARY = '#1B5E20';
@@ -15,17 +17,14 @@ export default function LoginScreen() {
   const { login } = useAuth();
 
   const masuk = () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert('Data belum lengkap', 'Email dan password wajib diisi.');
+    if (!email.trim() || !password) {
+      showMessage('Data belum lengkap', 'Email dan password wajib diisi.');
       return;
     }
-
     setSubmitting(true);
     void login(email.trim(), password)
-      .catch((error: unknown) => {
-        const message = getApiErrorMessage(error, 'Tidak dapat terhubung ke server.');
-        Alert.alert('Login gagal', message);
-      })
+      .then(() => showMessage('Login berhasil', `Selamat datang kembali, ${email.trim()}.`))
+      .catch((error: unknown) => showMessage('Login gagal', getApiErrorMessage(error, 'Tidak dapat terhubung ke server.')))
       .finally(() => setSubmitting(false));
   };
 
@@ -35,45 +34,21 @@ export default function LoginScreen() {
         <Text style={styles.logo}>Sawit Care</Text>
         <Text style={styles.title}>Selamat Datang</Text>
         <Text style={styles.subtitle}>Masuk untuk memantau kesehatan kebun Anda.</Text>
-
         <Text style={styles.label}>Email</Text>
-        <TextInput
-          autoCapitalize="none"
-          autoComplete="email"
-          keyboardType="email-address"
-          onChangeText={setEmail}
-          placeholder="Masukkan email"
-          placeholderTextColor="#9E9E9E"
-          style={styles.input}
-          value={email}
-        />
-
+        <TextInput autoCapitalize="none" autoComplete="email" keyboardType="email-address" onChangeText={setEmail} placeholder="Masukkan email" placeholderTextColor="#9E9E9E" style={styles.input} value={email} />
         <Text style={styles.label}>Password</Text>
         <View style={styles.passwordRow}>
-          <TextInput
-            autoCapitalize="none"
-            autoComplete="password"
-            onChangeText={setPassword}
-            placeholder="Masukkan password"
-            placeholderTextColor="#9E9E9E"
-            secureTextEntry={!showPassword}
-            style={styles.passwordInput}
-            value={password}
-          />
+          <TextInput autoCapitalize="none" autoComplete="password" onChangeText={setPassword} placeholder="Masukkan password" placeholderTextColor="#9E9E9E" secureTextEntry={!showPassword} style={styles.passwordInput} value={password} />
           <Pressable accessibilityLabel={showPassword ? 'Sembunyikan password' : 'Tampilkan password'} onPress={() => setShowPassword((visible) => !visible)} style={styles.passwordToggle}>
-            <Text style={styles.passwordToggleText}>{showPassword ? 'Sembunyikan' : 'Lihat'}</Text>
+            {showPassword ? <SymbolView name={{ ios: 'eye.slash', android: 'visibility_off', web: 'visibility_off' }} tintColor={PRIMARY} size={19} /> : <SymbolView name={{ ios: 'eye', android: 'visibility', web: 'visibility' }} tintColor={PRIMARY} size={19} />}
           </Pressable>
         </View>
-
         <Pressable disabled={submitting} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed, submitting && styles.disabled]} onPress={masuk}>
           {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Masuk</Text>}
         </Pressable>
-
         <View style={styles.footerRow}>
           <Text style={styles.footerText}>Belum punya akun? </Text>
-          <Pressable onPress={() => router.push('/register' as never)}>
-            <Text style={styles.link}>Daftar di sini</Text>
-          </Pressable>
+          <Link href={{ pathname: '/register' }} asChild><Pressable><Text style={styles.link}>Daftar di sini</Text></Pressable></Link>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -90,8 +65,7 @@ const styles = StyleSheet.create({
   input: { borderColor: '#D6D6D6', borderRadius: 10, borderWidth: 1, color: '#212121', fontSize: 15, minHeight: 52, paddingHorizontal: 14 },
   passwordRow: { alignItems: 'center', borderColor: '#D6D6D6', borderRadius: 10, borderWidth: 1, flexDirection: 'row' },
   passwordInput: { color: '#212121', flex: 1, fontSize: 15, minHeight: 52, paddingHorizontal: 14 },
-  passwordToggle: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
-  passwordToggleText: { color: PRIMARY, fontSize: 13, fontWeight: '700' },
+  passwordToggle: { alignItems: 'center', justifyContent: 'center', minHeight: 48, paddingHorizontal: 12 },
   primaryButton: { alignItems: 'center', backgroundColor: PRIMARY, borderRadius: 10, justifyContent: 'center', marginTop: 26, minHeight: 52 },
   primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   footerRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 22 },

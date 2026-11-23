@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 const PRIMARY = '#1B5E20';
@@ -17,11 +18,11 @@ export default function HomeScreen() {
       </View>
       <Text style={styles.sectionTitle}>Ringkasan Kebun</Text>
       <View style={styles.statsRow}>
-        <View style={styles.statCard}><Text style={styles.statIcon}>◉</Text><Text style={styles.statValue}>12</Text><Text style={styles.statLabel}>Total Scan</Text></View>
-        <View style={styles.statCard}><Text style={styles.statIcon}>⚠</Text><Text style={styles.statValue}>2</Text><Text style={styles.statLabel}>Pohon Sakit</Text></View>
+        <View style={styles.statCard}><SymbolView name={{ ios: 'viewfinder', android: 'center_focus_strong', web: 'center_focus_strong' }} tintColor={PRIMARY} size={20} /><Text style={styles.statValue}>12</Text><Text style={styles.statLabel}>Total Scan</Text></View>
+        <View style={styles.statCard}><SymbolView name={{ ios: 'exclamationmark.triangle', android: 'warning', web: 'warning' }} tintColor="#C62828" size={20} /><Text style={styles.statValue}>2</Text><Text style={styles.statLabel}>Pohon Sakit</Text></View>
       </View>
       <View style={styles.infoCard}><Text style={styles.infoTitle}>Deteksi dini, panen lebih baik</Text><Text style={styles.infoText}>Scan daun kelapa sawit untuk mendapatkan referensi awal kondisi tanaman.</Text></View>
-      <Pressable style={({ pressed }) => [styles.scanButton, pressed && styles.pressed]} onPress={() => router.push('/scan' as never)}><Text style={styles.scanButtonText}>Scan Sekarang</Text><Text style={styles.arrow}>→</Text></Pressable>
+      <Pressable style={({ pressed }) => [styles.scanButton, pressed && styles.pressed]} onPress={() => router.push('/scan')}><Text style={styles.scanButtonText}>Scan Sekarang</Text><Text style={styles.arrow}>→</Text></Pressable>
     </ScrollView>
   );
 }

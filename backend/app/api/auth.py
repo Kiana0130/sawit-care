@@ -7,7 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import ensure_unique_email, get_current_user, password_matches, refresh_expiry, user_response
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import create_access_token, create_refresh_token, hash_password, hash_refresh_token
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    hash_password,
+    hash_refresh_token,
+    password_needs_rehash,
+)
 from app.models import RefreshToken, User
 from app.schemas.auth import AuthResponse, LoginRequest, RefreshRequest, TokenResponse, RegisterRequest, UserResponse
 
@@ -50,6 +56,8 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> Au
     user = await db.scalar(select(User).where(User.email == payload.email))
     if user is None or not password_matches(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_CREDENTIALS")
+    if password_needs_rehash(user.password_hash):
+        user.password_hash = hash_password(payload.password)
 
     raw_refresh = await persist_refresh_token(db, user)
     await db.commit()
@@ -68,7 +76,10 @@ async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)) -
     if row is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="UNAUTHENTICATED")
     token, user = row
-    if token.revoked_at is not None or token.expires_at <= now:
+    expires_at = token.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if token.revoked_at is not None or expires_at <= now:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="UNAUTHENTICATED")
 
     token.revoked_at = now

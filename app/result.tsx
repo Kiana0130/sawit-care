@@ -1,5 +1,8 @@
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
+
+import { showMessage } from '@/lib/feedback';
 
 const PRIMARY = '#1B5E20';
 
@@ -21,13 +24,17 @@ export default function ResultScreen() {
       <Text style={styles.disease}>{disease}</Text>
       <Text style={styles.confidence}>Tingkat Keyakinan: <Text style={styles.confidenceValue}>{confidence}%</Text></Text>
 
-      <View style={styles.disclaimer}><Text style={styles.disclaimerText}>ℹ️ Hasil AI bersifat referensi awal. Konsultasikan dengan ahli pertanian.</Text></View>
+      <View style={styles.disclaimer}>
+      <SymbolView name={{ ios: 'info.circle', android: 'info', web: 'info' }} tintColor="#6D5B16" size={18} />
+      <Text style={styles.disclaimerText}>Hasil AI bersifat referensi awal. Konsultasikan dengan ahli pertanian.</Text>
+    </View>
 
-      <Pressable style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]} onPress={() => Alert.alert('Saran Penanganan', 'Fitur saran penanganan akan segera hadir pada prototype berikutnya.')}>
+      <Pressable style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]} onPress={() => showMessage('Saran Penanganan', 'Fitur saran penanganan akan segera hadir pada prototype berikutnya.')}>
         <Text style={styles.primaryButtonText}>Lihat Saran Penanganan</Text>
       </Pressable>
-      <Pressable style={({ pressed }) => [styles.lockedButton, pressed && styles.pressed]} onPress={() => Alert.alert('Fitur PRO', 'Fitur ini khusus untuk pengguna PRO. Silakan upgrade!')}>
-        <Text style={styles.lockedButtonText}>🔒 Tandai Lokasi GPS (PRO)</Text>
+      <Pressable style={({ pressed }) => [styles.lockedButton, pressed && styles.pressed]} onPress={() => showMessage('Fitur PRO', 'Fitur ini khusus untuk pengguna PRO. Silakan upgrade!')}>
+        <SymbolView name={{ ios: 'lock.fill', android: 'lock', web: 'lock' }} tintColor="#757575" size={18} />
+        <Text style={styles.lockedButtonText}>Tandai Lokasi GPS (PRO)</Text>
       </Pressable>
       <Pressable style={styles.backButton} onPress={() => router.back()}><Text style={styles.backText}>Kembali ke Scan</Text></Pressable>
     </View>
@@ -45,11 +52,11 @@ const styles = StyleSheet.create({
   disease: { color: '#212121', fontSize: 25, fontWeight: '800', marginTop: 12 },
   confidence: { color: '#616161', fontSize: 15, marginTop: 6 },
   confidenceValue: { color: PRIMARY, fontWeight: '800' },
-  disclaimer: { backgroundColor: '#FFF8E1', borderRadius: 12, marginTop: 18, padding: 13 },
+  disclaimer: { alignItems: 'flex-start', backgroundColor: '#FFF8E1', borderRadius: 12, flexDirection: 'row', gap: 8, marginTop: 18, padding: 13 },
   disclaimerText: { color: '#6D5B16', fontSize: 12, lineHeight: 18 },
   primaryButton: { alignItems: 'center', backgroundColor: PRIMARY, borderRadius: 12, justifyContent: 'center', marginTop: 22, minHeight: 52 },
   primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
-  lockedButton: { alignItems: 'center', backgroundColor: '#E0E0E0', borderRadius: 12, justifyContent: 'center', marginTop: 12, minHeight: 52 },
+  lockedButton: { alignItems: 'center', backgroundColor: '#E0E0E0', borderRadius: 12, flexDirection: 'row', gap: 8, justifyContent: 'center', marginTop: 12, minHeight: 52 },
   lockedButtonText: { color: '#757575', fontSize: 14, fontWeight: '700' },
   backButton: { alignItems: 'center', marginTop: 14, minHeight: 48, justifyContent: 'center' },
   backText: { color: PRIMARY, fontSize: 14, fontWeight: '700' },

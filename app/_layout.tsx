@@ -1,5 +1,5 @@
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, usePathname, useRouter } from 'expo-router';
+import { DarkTheme, DefaultTheme, Redirect, Stack, ThemeProvider, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
@@ -70,14 +70,7 @@ function RootLayoutNav() {
 function AuthGate({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const pathname = usePathname();
-  const router = useRouter();
   const isPublicRoute = pathname === '/login' || pathname === '/register';
-
-  useEffect(() => {
-    if (loading) return;
-    if (!user && !isPublicRoute) router.replace('/login');
-    if (user && isPublicRoute) router.replace('/(tabs)');
-  }, [isPublicRoute, loading, pathname, router, user]);
 
   if (loading) {
     return (
@@ -88,7 +81,8 @@ function AuthGate({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!user && !isPublicRoute) return null;
+  if (!user && !isPublicRoute) return <Redirect href="/login" />;
+  if (user && isPublicRoute) return <Redirect href="/(tabs)" />;
   return children;
 }
 

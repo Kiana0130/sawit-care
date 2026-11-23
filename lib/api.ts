@@ -48,7 +48,8 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
     VALIDATION_ERROR: 'Data yang dimasukkan belum valid.',
     INVALID_EMAIL: 'Format email tidak valid. Periksa kembali email Anda.',
     INVALID_PASSWORD: 'Password belum memenuhi ketentuan.',
-    INVALID_INPUT: 'Data yang dimasukkan belum valid.',
+    REQUEST_TIMEOUT: 'Server terlalu lama merespons. Periksa koneksi HP, alamat API, dan firewall komputer.',
+    NETWORK_ERROR: 'Tidak dapat terhubung ke server. Pastikan server API hidup dan bisa dijangkau HP lewat Wi-Fi.',
   };
   return messages[error.code] ?? error.message ?? fallback;
 }
@@ -65,6 +66,23 @@ async function parseError(response: Response): Promise<ApiError> {
   return new ApiError(response.status, code, message);
 }
 
+const API_REQUEST_TIMEOUT_MS = 15_000;
+
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new ApiError(0, 'REQUEST_TIMEOUT', 'Server terlalu lama merespons. Periksa Wi-Fi HP, alamat API, dan firewall komputer.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function request<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
@@ -79,7 +97,7 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
 
   let response: Response;
   try {
-    response = await fetch(`${API_URL ?? 'http://localhost:8000/v1'}${path}`, { ...init, headers });
+    response = await fetchWithTimeout(`${API_URL ?? 'http://localhost:8000/v1'}${path}`, { ...init, headers });
   } catch {
     throw new ApiError(0, 'NETWORK_ERROR', 'Tidak dapat terhubung ke server. Periksa alamat API dan koneksi jaringan.');
   }

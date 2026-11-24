@@ -48,6 +48,11 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
     VALIDATION_ERROR: 'Data yang dimasukkan belum valid.',
     INVALID_EMAIL: 'Format email tidak valid. Periksa kembali email Anda.',
     INVALID_PASSWORD: 'Password belum memenuhi ketentuan.',
+    IMAGE_NOT_VALID: 'Foto tidak valid atau sisinya melebihi 2048 piksel.',
+    FILE_TOO_LARGE: 'Ukuran foto maksimal 10 MB.',
+    SCAN_QUOTA_EXCEEDED: 'Kuota scan hari ini sudah habis.',
+    RESOURCE_NOT_FOUND: 'Data scan tidak ditemukan.',
+    REQUEST_FAILED: 'Permintaan belum berhasil. Coba lagi.',
     REQUEST_TIMEOUT: 'Server terlalu lama merespons. Periksa koneksi HP, alamat API, dan firewall komputer.',
     NETWORK_ERROR: 'Tidak dapat terhubung ke server. Pastikan server API hidup dan bisa dijangkau HP lewat Wi-Fi.',
   };
@@ -83,7 +88,7 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
   }
 }
 
-async function request<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
+export async function request<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
   if (init.body && !(init.body instanceof FormData)) {
@@ -98,7 +103,8 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
   let response: Response;
   try {
     response = await fetchWithTimeout(`${API_URL ?? 'http://localhost:8000/v1'}${path}`, { ...init, headers });
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(0, 'NETWORK_ERROR', 'Tidak dapat terhubung ke server. Periksa alamat API dan koneksi jaringan.');
   }
 

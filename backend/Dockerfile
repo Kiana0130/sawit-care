@@ -12,6 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./alembic.ini
+RUN mkdir -p /app/uploads/scans
+ENV SCAN_STORAGE_DIR=/app/uploads/scans
 
 EXPOSE 8000
 

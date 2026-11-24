@@ -44,7 +44,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - sawitcare-uploads:/app/uploads/scans
 
 volumes:
   sawitcare-postgres:
   sawitcare-minio:
+  sawitcare-uploads:

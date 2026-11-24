@@ -1,12 +1,12 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, Text, Numeric, Boolean
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import TimestampMixin, UUIDPrimaryKeyMixin
 from app.core.database import Base
+from app.models.base import TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -48,14 +48,15 @@ class DiseaseClass(UUIDPrimaryKeyMixin, Base):
 
 class Scan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "scans"
+    __table_args__ = (UniqueConstraint("user_id", "client_id", name="uq_scans_user_client"),)
 
-    client_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    client_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     disease_class_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("disease_classes.id", ondelete="SET NULL"), nullable=True
     )
     image_object_key: Mapped[str] = mapped_column(String(512))
-    status: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
     confidence: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     scanned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
@@ -68,6 +69,6 @@ class DailyScanUsage(Base):
 
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     usage_date: Mapped[date] = mapped_column(Date, primary_key=True)
-    scan_count: Mapped[int] = mapped_column(default=0, server_default="0")
+    scan_count: Mapped[int] = mapped_column(default=0, server_default="0", nullable=False)
 
     user: Mapped[User] = relationship(back_populates="daily_scan_usage")

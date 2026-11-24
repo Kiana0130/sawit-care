@@ -4,6 +4,7 @@ import { useFocusEffect, router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 
 import { deleteScan, ScanApiError, getScanHistory } from '@/lib/scan-api';
+import { showConfirm } from '@/lib/feedback';
 
 type Filter = 'all' | 'healthy' | 'sick' | 'pending';
 type ScanItem = Awaited<ReturnType<typeof getScanHistory>>['items'][number];
@@ -60,7 +61,7 @@ export default function HistoryScreen() {
             <Text style={styles.confidence}>{pending ? 'Foto tersimpan; hasil belum tersedia.' : 'Hasil diagnosis tersedia'}</Text>
           </View>
         </Pressable>
-        <Pressable disabled={busyId === item.id} accessibilityRole="button" accessibilityLabel="Hapus riwayat" onPress={() => void remove(item.id)} style={styles.deleteButton}>
+        <Pressable disabled={busyId === item.id} accessibilityRole="button" accessibilityLabel="Hapus riwayat" onPress={() => showConfirm('Hapus riwayat scan?', `Hapus riwayat scan pada ${date} WITA? Tindakan ini tidak dapat dibatalkan.`, 'Hapus', () => { void remove(item.id); })} style={styles.deleteButton}>
           {busyId === item.id ? <ActivityIndicator size="small" color="#C62828" /> : <SymbolView name={{ ios: 'trash', android: 'delete', web: 'delete' }} tintColor="#C62828" size={19} />}
         </Pressable>
       </View>

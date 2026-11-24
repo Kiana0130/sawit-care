@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import { randomUUID } from 'expo-crypto';
 import { File as ExpoFile, Paths, UploadType } from 'expo-file-system';
 
+import { prepareScanImage } from '@/lib/scan-image';
 import { getAccessToken } from '@/lib/auth-storage';
 import { ApiError, getApiErrorMessage, request, requestResponse, type User } from '@/lib/api';
 
@@ -62,19 +63,22 @@ type DashboardSummary = {
   last_updated_at: string | null;
 };
 
-export async function submitScan(uri: string, mimeType?: string | null) {
+export async function submitScan(uri: string) {
   const clientId = randomUUID();
+  let prepared: Awaited<ReturnType<typeof prepareScanImage>> | undefined;
   try {
+    prepared = await prepareScanImage(uri);
+    const processed = prepared;
     if (Platform.OS !== 'web') {
       const uploadNativeFile = async (token: string) => {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 60_000);
         try {
-          const result = await new ExpoFile(uri).upload(`${API_URL}/scans`, {
+          const result = await new ExpoFile(processed.uri).upload(`${API_URL}/scans`, {
             httpMethod: 'POST',
             uploadType: UploadType.MULTIPART,
             fieldName: 'image',
-            mimeType: mimeType ?? 'image/jpeg',
+            mimeType: processed.mimeType,
             headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
             parameters: { client_id: clientId },
             signal: controller.signal,
@@ -107,13 +111,15 @@ export async function submitScan(uri: string, mimeType?: string | null) {
 
     const form = new FormData();
     form.append('client_id', clientId);
-    const response = await fetch(uri);
+    const response = await fetch(processed.uri);
     form.append('image', await response.blob(), 'leaf-image.jpg');
     return await requestScan<ScanItem>('/scans', { method: 'POST', body: form });
   } catch (error) {
     if (error instanceof ApiError) throw new ScanApiError(error.status, error.code, getApiErrorMessage(error, error.message));
     if (error instanceof ScanApiError) throw error;
     throw new ScanApiError(0, 'UPLOAD_ERROR', error instanceof Error ? `Upload gagal: ${error.message}` : 'Upload foto gagal. Periksa izin file dan koneksi API.');
+  } finally {
+    prepared?.release();
   }
 }
 

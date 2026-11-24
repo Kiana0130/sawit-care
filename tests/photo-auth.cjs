@@ -6,7 +6,7 @@ const load = (path, mocks) => {
   const code = ts.transpile(fs.readFileSync(path, 'utf8'), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 });
   const module = { exports: {} };
   vm.runInThisContext('(function(require,module,exports,process,fetch,Headers,FormData,AbortController,setTimeout,clearTimeout,URL){' + code + '\n})')(
-    (name) => { if (name in mocks) return mocks[name]; throw Error(name); }, module, module.exports, process, global.fetch, Headers, FormData, AbortController, setTimeout, clearTimeout, URL);
+    (name) => { if (name in mocks) return mocks[name]; if (name === '@/lib/scan-image') return {}; throw Error(name); }, module, module.exports, process, global.fetch, Headers, FormData, AbortController, setTimeout, clearTimeout, URL);
   return module.exports;
 };
 (async () => {

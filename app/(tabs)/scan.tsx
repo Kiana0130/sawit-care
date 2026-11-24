@@ -53,7 +53,7 @@ export default function ScanScreen() {
         showMessage('Kuota habis', 'Kuota scan harian Anda sudah digunakan. Coba lagi besok pukul 00.00 WITA.');
         return;
       }
-      const saved = await submitScan(image.uri, image.mimeType);
+      const saved = await submitScan(image.uri);
       router.push({ pathname: '/scan-detail', params: { id: saved.id } });
     } catch (cause) {
       const message = cause instanceof ScanApiError ? cause.message : 'Foto gagal dikirim. Periksa koneksi, lalu coba lagi.';

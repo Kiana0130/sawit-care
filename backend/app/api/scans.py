@@ -1,5 +1,6 @@
 from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
+import logging
 import os
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -14,6 +15,7 @@ from app.core.database import get_db
 from app.models import DailyScanUsage, Scan, User
 
 router = APIRouter(prefix="/scans", tags=["scans"])
+logger = logging.getLogger(__name__)
 dashboard_router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 SCAN_STORAGE_DIR = Path(os.getenv("SCAN_STORAGE_DIR", str(Path(__file__).resolve().parents[2] / "uploads" / "scans")))
 ALLOWED_CONTENT_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
@@ -42,6 +44,10 @@ async def _read_and_validate_image(image: UploadFile) -> bytes:
         raise HTTPException(status_code=413, detail="FILE_TOO_LARGE")
     try:
         from PIL import Image, UnidentifiedImageError
+    except ImportError:
+        logger.exception("Image validation unavailable: Pillow could not be imported")
+        raise HTTPException(status_code=503, detail="IMAGE_VALIDATION_UNAVAILABLE") from None
+    try:
         with Image.open(BytesIO(data)) as decoded:
             decoded.verify()
         with Image.open(BytesIO(data)) as decoded:

@@ -83,6 +83,29 @@ async def test_invalid_upload_does_not_consume_daily_quota(scan_user):
 
 
 @pytest.mark.asyncio
+async def test_missing_pillow_returns_service_error_without_consuming_quota(scan_user, monkeypatch):
+    import builtins
+
+    _, token = scan_user
+    data, files = image_upload(str(uuid.uuid4()))
+    original_import = builtins.__import__
+
+    def missing_pillow(name, *args, **kwargs):
+        if name == "PIL":
+            raise ModuleNotFoundError("No module named 'PIL'", name="PIL")
+        return original_import(name, *args, **kwargs)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        with monkeypatch.context() as patch:
+            patch.setattr(builtins, "__import__", missing_pillow)
+            response = await client.post("/v1/scans", headers=request_headers(token), data=data, files=files)
+        assert response.status_code == 503
+        assert response.json()["detail"] == "IMAGE_VALIDATION_UNAVAILABLE"
+        quota = await client.get("/v1/scans/quota", headers=request_headers(token))
+    assert quota.json()["used"] == 0
+
+
+@pytest.mark.asyncio
 async def test_upload_creates_pending_history_and_quota(scan_user):
     _, token = scan_user
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

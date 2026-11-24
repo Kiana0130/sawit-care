@@ -1,9 +1,9 @@
 import { Platform } from 'react-native';
 import { randomUUID } from 'expo-crypto';
-import { File as ExpoFile, UploadType } from 'expo-file-system';
+import { File as ExpoFile, Paths, UploadType } from 'expo-file-system';
 
 import { getAccessToken } from '@/lib/auth-storage';
-import { ApiError, getApiErrorMessage, request, type User } from '@/lib/api';
+import { ApiError, getApiErrorMessage, request, requestResponse, type User } from '@/lib/api';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, '') ?? 'http://localhost:8000/v1';
 
@@ -139,13 +139,30 @@ export function getDashboardSummary() {
 }
 
 export async function getScanPhoto(id: string): Promise<ScanPhotoSource> {
-  const token = await getAccessToken();
-  if (!token) throw new ScanApiError(401, 'UNAUTHENTICATED', 'Sesi login tidak ditemukan.');
-  const url = `${API_URL}/scans/${id}/photo`;
-  if (Platform.OS !== 'web') return { uri: url, headers: { Authorization: `Bearer ${token}` } };
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  if (!response.ok) throw new ScanApiError(response.status, 'PHOTO_UNAVAILABLE', 'Foto scan tidak dapat dimuat.');
-  return { uri: URL.createObjectURL(await response.blob()) };
+  try {
+    const response = await requestResponse(`/scans/${encodeURIComponent(id)}/photo`, { headers: { Accept: 'image/*' } });
+    if (Platform.OS === 'web') return { uri: URL.createObjectURL(await response.blob()) };
+    const file = new ExpoFile(Paths.cache, `scan-photo-${randomUUID()}`);
+    try {
+      file.write(new Uint8Array(await response.arrayBuffer()));
+      return { uri: file.uri };
+    } catch (error) {
+      if (file.exists) file.delete();
+      throw error;
+    }
+  } catch (error) {
+    if (error instanceof ApiError) throw new ScanApiError(error.status, error.code, getApiErrorMessage(error, 'Foto scan tidak dapat dimuat.'));
+    throw new ScanApiError(0, 'PHOTO_UNAVAILABLE', 'Foto scan tidak dapat dimuat.');
+  }
+}
+
+export function releaseScanPhoto(photo: ScanPhotoSource) {
+  if (Platform.OS === 'web') {
+    if (photo.uri.startsWith('blob:')) URL.revokeObjectURL(photo.uri);
+  } else {
+    const file = new ExpoFile(photo.uri);
+    if (file.exists) file.delete();
+  }
 }
 
 export function getCurrentUser(): Promise<User> {

@@ -49,6 +49,7 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
     INVALID_EMAIL: 'Format email tidak valid. Periksa kembali email Anda.',
     INVALID_PASSWORD: 'Password belum memenuhi ketentuan.',
     IMAGE_NOT_VALID: 'Foto tidak valid atau sisinya melebihi 2048 piksel.',
+    IMAGE_VALIDATION_UNAVAILABLE: 'Layanan pemeriksaan foto belum tersedia. Periksa konfigurasi backend.',
     FILE_TOO_LARGE: 'Ukuran foto maksimal 10 MB.',
     SCAN_QUOTA_EXCEEDED: 'Kuota scan hari ini sudah habis.',
     RESOURCE_NOT_FOUND: 'Data scan tidak ditemukan.',
@@ -88,9 +89,9 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
   }
 }
 
-export async function request<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
+export async function requestResponse(path: string, init: RequestInit = {}, retry = true): Promise<Response> {
   const headers = new Headers(init.headers);
-  headers.set('Accept', 'application/json');
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json');
   if (init.body && !(init.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
@@ -108,17 +109,20 @@ export async function request<T>(path: string, init: RequestInit = {}, retry = t
     throw new ApiError(0, 'NETWORK_ERROR', 'Tidak dapat terhubung ke server. Periksa alamat API dan koneksi jaringan.');
   }
 
-  if (response.ok) {
-    if (response.status === 204) return undefined as T;
-    return (await response.json()) as T;
-  }
+  if (response.ok) return response;
 
   if (response.status === 401 && retry && path !== '/auth/refresh') {
     const refreshed = await refreshSession();
-    if (refreshed) return request<T>(path, init, false);
+    if (refreshed) return requestResponse(path, init, false);
   }
 
   throw await parseError(response);
+}
+
+export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await requestResponse(path, init);
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
 }
 
 let refreshPromise: Promise<boolean> | null = null;

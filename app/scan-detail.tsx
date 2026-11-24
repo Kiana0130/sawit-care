@@ -3,7 +3,7 @@ import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 
-import { ScanApiError, getScanDetail, getScanPhoto, type ScanPhotoSource } from '@/lib/scan-api';
+import { ScanApiError, getScanDetail, getScanPhoto, releaseScanPhoto, type ScanPhotoSource } from '@/lib/scan-api';
 
 const PRIMARY = '#1B5E20';
 
@@ -22,15 +22,19 @@ export default function ScanDetailScreen() {
       return () => { active = false; };
     }
     setLoading(true);
-    Promise.all([getScanDetail(id), getScanPhoto(id)])
-      .then(([value, image]) => { if (active) { setItem(value); setPhoto(image); setError(null); } })
+    getScanDetail(id)
+      .then(async (value) => {
+        const image = await getScanPhoto(id);
+        if (active) { setItem(value); setPhoto(image); setError(null); }
+        else releaseScanPhoto(image);
+      })
       .catch((cause: unknown) => { if (active) setError(cause instanceof ScanApiError ? cause.message : 'Detail scan tidak dapat dimuat.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [id]));
 
   useEffect(() => () => {
-    if (photo?.uri.startsWith('blob:')) URL.revokeObjectURL(photo.uri);
+    if (photo) releaseScanPhoto(photo);
   }, [photo]);
 
   if (loading) return <View style={styles.state}><ActivityIndicator size="large" color={PRIMARY} /><Text style={styles.text}>Memuat detail scan...</Text></View>;

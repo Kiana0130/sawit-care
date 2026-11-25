@@ -1,5 +1,5 @@
 from collections.abc import AsyncGenerator
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import os
 import uuid
 from io import BytesIO
@@ -26,9 +26,13 @@ SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSe
 async def create_test_database():
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+    previous = app.dependency_overrides.get(get_db)
     app.dependency_overrides[get_db] = override_get_db
     yield
-    app.dependency_overrides.pop(get_db, None)
+    if previous is None:
+        app.dependency_overrides.pop(get_db, None)
+    else:
+        app.dependency_overrides[get_db] = previous
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.drop_all)
 
@@ -182,6 +186,7 @@ async def test_pro_user_does_not_have_free_scan_limit(scan_user):
         stored_user = await session.get(User, user.id)
         assert stored_user is not None
         stored_user.plan = "pro"
+        stored_user.pro_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
         await session.commit()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         for _ in range(6):

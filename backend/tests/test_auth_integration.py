@@ -23,7 +23,13 @@ SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSe
 async def create_test_database():
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+    previous = app.dependency_overrides.get(get_db)
+    app.dependency_overrides[get_db] = override_get_db
     yield
+    if previous is None:
+        app.dependency_overrides.pop(get_db, None)
+    else:
+        app.dependency_overrides[get_db] = previous
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.drop_all)
 
@@ -31,9 +37,6 @@ async def create_test_database():
 async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
     async with SessionLocal() as session:
         yield session
-
-
-app.dependency_overrides[get_db] = override_get_db
 
 
 @pytest.mark.asyncio
@@ -95,3 +98,22 @@ async def test_invalid_token_subject_returns_401():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/v1/users/me", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_profile_update_persists_and_rejects_duplicate_email():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        password = "Strong-password-123!"
+        first = await client.post("/v1/auth/register", json={"name": "First Farmer", "email": "first@example.com", "password": password})
+        second = await client.post("/v1/auth/register", json={"name": "Second Farmer", "email": "second@example.com", "password": password})
+        assert first.status_code == second.status_code == 201
+        headers = {"Authorization": f"Bearer {first.json()['tokens']['access_token']}"}
+        updated = await client.patch("/v1/users/me", headers=headers, json={"name": "Updated Farmer", "email": "UPDATED@example.com"})
+        assert updated.status_code == 200
+        assert updated.json()["name"] == "Updated Farmer"
+        assert updated.json()["email"] == "updated@example.com"
+        profile = await client.get("/v1/users/me", headers=headers)
+        assert profile.json() == updated.json()
+        duplicate = await client.patch("/v1/users/me", headers=headers, json={"name": "Not Saved", "email": "second@example.com"})
+        assert duplicate.status_code == 409
+        assert (await client.get("/v1/users/me", headers=headers)).json() == updated.json()

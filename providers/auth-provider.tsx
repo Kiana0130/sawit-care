@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { PropsWithChildren } from 'react';
 import { router } from 'expo-router';
 
-import { getProfile, login as apiLogin, logout as apiLogout, register as apiRegister, User } from '@/lib/api';
+import { changePassword as apiChangePassword, getProfile, login as apiLogin, logout as apiLogout, register as apiRegister, updateProfile as apiUpdateProfile, User } from '@/lib/api';
 import { clearTokens, getAccessToken } from '@/lib/auth-storage';
 
 type AuthContextValue = {
@@ -10,6 +10,9 @@ type AuthContextValue = {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
+  updateProfile: (name: string, email: string) => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -48,10 +51,30 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setUser(result.user);
       router.replace('/(tabs)');
     },
+    async updateProfile(name, email) {
+      const updated = await apiUpdateProfile(name, email);
+      setUser(current => current && current.id === updated.id ? updated : current);
+    },
+    async refreshProfile() {
+      const updated = await getProfile();
+      setUser(current => current && current.id === updated.id ? updated : current);
+    },
+    async changePassword(currentPassword, newPassword) {
+      await apiChangePassword(currentPassword, newPassword);
+      try {
+        await clearTokens();
+      } finally {
+        setUser(null);
+        router.replace({ pathname: '/login', params: { passwordChanged: '1' } });
+      }
+    },
     async logout() {
-      await apiLogout();
-      setUser(null);
-      router.replace('/login');
+      try {
+        await apiLogout();
+      } finally {
+        setUser(null);
+        router.replace('/login');
+      }
     },
   }), [loading, user]);
 

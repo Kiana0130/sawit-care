@@ -43,10 +43,10 @@ def password_needs_rehash(password_hash: str) -> bool:
         return True
 
 
-def create_access_token(subject: str, expires_delta: timedelta | None = None) -> str:
+def create_access_token(subject: str, expires_delta: timedelta | None = None, *, session_version: int = 0) -> str:
     expires_delta = expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
     now = datetime.now(timezone.utc)
-    payload = {"sub": subject, "type": "access", "iat": now, "exp": now + expires_delta}
+    payload = {"sub": subject, "type": "access", "session_version": session_version, "iat": now, "exp": now + expires_delta}
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 

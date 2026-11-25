@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     db_echo: bool = False
     cors_origins: str = "http://localhost:8081,http://localhost:19006"
     port: int = 8000
+    midtrans_server_key: str = ""
+    midtrans_signature_key: str = ""
     jwt_secret_key: str = "development-only-secret-change-before-deploy-32-bytes"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15

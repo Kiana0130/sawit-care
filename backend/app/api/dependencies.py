@@ -32,13 +32,23 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="UNAUTHENTICATED") from exc
 
     user = await db.scalar(select(User).where(User.id == user_id))
-    if user is None:
+    if user is None or type(payload.get("session_version", 0)) is not int or payload.get("session_version", 0) != user.session_version:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="UNAUTHENTICATED")
     return user
 
 
+def effective_plan(user: User) -> str:
+    expiry = user.pro_expires_at
+    if expiry is not None:
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+        if user.plan == "pro" and expiry > datetime.now(timezone.utc):
+            return "pro"
+    return "free"
+
+
 def user_response(user: User) -> UserResponse:
-    return UserResponse(id=str(user.id), name=user.name, email=user.email, plan=user.plan)
+    return UserResponse(id=str(user.id), name=user.name, email=user.email, plan=effective_plan(user))
 
 
 def refresh_expiry() -> datetime:

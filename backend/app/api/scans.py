@@ -7,10 +7,10 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import effective_plan, get_current_user
 from app.core.database import get_db
 from app.models import DailyScanUsage, Scan, User
 
@@ -60,15 +60,22 @@ async def _read_and_validate_image(image: UploadFile) -> bytes:
     return data
 
 
-async def _usage_for_today(session: AsyncSession, user: User) -> DailyScanUsage:
-    today = _wita_today()
-    usage = await session.scalar(select(DailyScanUsage).where(
-        DailyScanUsage.user_id == user.id, DailyScanUsage.usage_date == today,
-    ))
-    if usage is None:
-        usage = DailyScanUsage(user_id=user.id, usage_date=today, scan_count=0)
-        session.add(usage)
-    return usage
+async def _lock_daily_usage(session: AsyncSession, user_id: UUID, today: date) -> None:
+    # A conflict-safe insert followed by a write locks the daily row for the
+    # entire transaction on PostgreSQL and SQLite, including its first use.
+    dialect = session.get_bind().dialect.name
+    if dialect == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert
+    elif dialect == "sqlite":
+        from sqlalchemy.dialects.sqlite import insert
+    else:
+        raise RuntimeError(f"Unsupported scan quota database dialect: {dialect}")
+    await session.execute(insert(DailyScanUsage).values(
+        user_id=user_id, usage_date=today, scan_count=0,
+    ).on_conflict_do_nothing(index_elements=[DailyScanUsage.user_id, DailyScanUsage.usage_date]))
+    await session.execute(update(DailyScanUsage).where(
+        DailyScanUsage.user_id == user_id, DailyScanUsage.usage_date == today,
+    ).values(scan_count=DailyScanUsage.scan_count))
 
 
 @dashboard_router.get("/summary")
@@ -76,7 +83,7 @@ async def dashboard_summary(
     current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db),
 ):
     query = select(Scan).where(Scan.user_id == current_user.id)
-    if current_user.plan != "pro":
+    if effective_plan(current_user) != "pro":
         query = query.where(Scan.scanned_at >= datetime.now(timezone.utc) - timedelta(days=7))
     scans = list((await session.scalars(query)).all())
     return {
@@ -93,14 +100,15 @@ async def dashboard_summary(
 async def get_scan_quota(
     current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db),
 ):
-    usage = await _usage_for_today(session, current_user)
-    await session.commit()
-    await session.refresh(usage)
-    limit = None if current_user.plan == "pro" else 5
+    today = _wita_today()
+    used = await session.scalar(select(DailyScanUsage.scan_count).where(
+        DailyScanUsage.user_id == current_user.id, DailyScanUsage.usage_date == today,
+    )) or 0
+    limit = None if effective_plan(current_user) == "pro" else 5
     return {
-        "date": _wita_today().isoformat(), "plan": current_user.plan,
-        "limit": limit, "used": usage.scan_count,
-        "remaining": None if limit is None else max(0, limit - usage.scan_count),
+        "date": today.isoformat(), "plan": effective_plan(current_user),
+        "limit": limit, "used": used,
+        "remaining": None if limit is None else max(0, limit - used),
     }
 
 
@@ -109,14 +117,23 @@ async def create_scan(
     client_id: UUID = Form(...), image: UploadFile = File(...),
     current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db),
 ):
-    usage = await _usage_for_today(session, current_user)
+    user_id = current_user.id
+    # The user lock also serializes matching client IDs across midnight.
+    await session.execute(update(User).where(User.id == user_id).values(id=User.id, updated_at=User.updated_at))
+    locked_user = await session.scalar(select(User).where(User.id == user_id).execution_options(populate_existing=True))
+    plan = effective_plan(locked_user)
+    today = _wita_today()
+    await _lock_daily_usage(session, user_id, today)
     existing = await session.scalar(select(Scan).where(
-        Scan.user_id == current_user.id, Scan.client_id == client_id,
+        Scan.user_id == user_id, Scan.client_id == client_id,
     ))
     if existing:
         return serialize_scan(existing)
     image_data = await _read_and_validate_image(image)
-    if current_user.plan != "pro" and usage.scan_count >= 5:
+    usage = await session.get(DailyScanUsage, (user_id, today))
+    if usage is None:
+        raise RuntimeError("Daily scan usage row was not created")
+    if plan != "pro" and usage.scan_count >= 5:
         raise HTTPException(status_code=429, detail="SCAN_QUOTA_EXCEEDED")
     extension = ALLOWED_CONTENT_TYPES.get(image.content_type)
     if extension is None:
@@ -125,13 +142,13 @@ async def create_scan(
     storage_dir = SCAN_STORAGE_DIR / str(current_user.id)
     storage_dir.mkdir(parents=True, exist_ok=True)
     image_path = storage_dir / f"{scan_id}.{extension}"
-    image_path.write_bytes(image_data)
     scan = Scan(
         id=scan_id, client_id=client_id, user_id=current_user.id,
         image_object_key=str(image_path), status="pending", scanned_at=datetime.now(timezone.utc),
     )
     session.add(scan)
     try:
+        image_path.write_bytes(image_data)
         await session.flush()
         usage.scan_count += 1
         await session.commit()
@@ -151,7 +168,7 @@ async def list_scans(
     current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db),
 ):
     query = select(Scan).where(Scan.user_id == current_user.id)
-    if current_user.plan != "pro":
+    if effective_plan(current_user) != "pro":
         query = query.where(Scan.scanned_at >= datetime.now(timezone.utc) - timedelta(days=7))
     if status_filter == "healthy":
         query = query.where(Scan.status == "healthy")

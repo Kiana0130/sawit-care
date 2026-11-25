@@ -20,16 +20,16 @@ from app.schemas.auth import AuthResponse, LoginRequest, RefreshRequest, TokenRe
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-def make_tokens(user_id: str, raw_refresh: str) -> TokenResponse:
+def make_tokens(user: User, raw_refresh: str) -> TokenResponse:
     return TokenResponse(
-        access_token=create_access_token(user_id),
+        access_token=create_access_token(str(user.id), session_version=user.session_version),
         refresh_token=raw_refresh,
         expires_in=settings.access_token_expire_minutes * 60,
     )
 
 
 def auth_response(user: User, raw_refresh: str) -> AuthResponse:
-    return AuthResponse(user=user_response(user), tokens=make_tokens(str(user.id), raw_refresh))
+    return AuthResponse(user=user_response(user), tokens=make_tokens(user, raw_refresh))
 
 
 async def persist_refresh_token(db: AsyncSession, user: User) -> str:
@@ -53,7 +53,7 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
 
 @router.post("/login", response_model=AuthResponse)
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> AuthResponse:
-    user = await db.scalar(select(User).where(User.email == payload.email))
+    user = await db.scalar(select(User).where(User.email == payload.email).with_for_update())
     if user is None or not password_matches(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_CREDENTIALS")
     if password_needs_rehash(user.password_hash):
@@ -66,16 +66,18 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> Au
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
-    result = await db.execute(
-        select(RefreshToken, User)
-        .join(User, User.id == RefreshToken.user_id)
-        .where(RefreshToken.token_hash == hash_refresh_token(payload.refresh_token))
+    token_hash = hash_refresh_token(payload.refresh_token)
+    # All session issuance and password changes lock the user first.
+    user = await db.scalar(
+        select(User).join(RefreshToken, User.id == RefreshToken.user_id)
+        .where(RefreshToken.token_hash == token_hash).with_for_update(of=User)
     )
-    row = result.one_or_none()
-    now = datetime.now(timezone.utc)
-    if row is None:
+    if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="UNAUTHENTICATED")
-    token, user = row
+    token = await db.scalar(select(RefreshToken).where(RefreshToken.token_hash == token_hash).with_for_update())
+    now = datetime.now(timezone.utc)
+    if token is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="UNAUTHENTICATED")
     expires_at = token.expires_at
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
@@ -85,7 +87,7 @@ async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)) -
     token.revoked_at = now
     raw_refresh = await persist_refresh_token(db, user)
     await db.commit()
-    return make_tokens(str(token.user_id), raw_refresh)
+    return make_tokens(user, raw_refresh)
 
 
 @router.get("/me", response_model=UserResponse)

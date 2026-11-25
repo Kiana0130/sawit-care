@@ -48,6 +48,7 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
     VALIDATION_ERROR: 'Data yang dimasukkan belum valid.',
     INVALID_EMAIL: 'Format email tidak valid. Periksa kembali email Anda.',
     INVALID_PASSWORD: 'Password belum memenuhi ketentuan.',
+    CURRENT_PASSWORD_INVALID: 'Password saat ini salah.',
     IMAGE_NOT_VALID: 'Foto tidak valid atau sisinya melebihi 2048 piksel.',
     IMAGE_VALIDATION_UNAVAILABLE: 'Layanan pemeriksaan foto belum tersedia. Periksa konfigurasi backend.',
     FILE_TOO_LARGE: 'Ukuran foto maksimal 10 MB.',
@@ -179,6 +180,20 @@ export async function login(email: string, password: string): Promise<AuthRespon
 
 export async function getProfile(): Promise<User> {
   return request<User>('/users/me');
+}
+
+export async function updateProfile(name: string, email: string): Promise<User> {
+  return request<User>('/users/me', {
+    method: 'PATCH',
+    body: JSON.stringify({ name, email }),
+  });
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await request<void>('/users/me/password', {
+    method: 'POST',
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
 }
 
 export async function logout(): Promise<void> {

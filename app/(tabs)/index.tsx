@@ -43,6 +43,7 @@ export default function HomeScreen() {
         <Text style={styles.helper}>{error ?? (limit === null ? 'Kuota scan Anda tidak dibatasi.' : 'Kuota dihitung ulang setiap hari pukul 00.00 WITA.')}</Text>
       </View>
       <Text style={styles.sectionTitle}>Ringkasan Scan</Text>
+      {quota && <Text style={styles.summaryPeriod}>{quota.plan === 'pro' ? 'Seluruh riwayat scan' : '7 hari terakhir'}</Text>}
       <View style={styles.statsRow}>
         <View style={styles.statCard}><SymbolView name={{ ios: 'viewfinder', android: 'center_focus_strong', web: 'center_focus_strong' }} tintColor={PRIMARY} size={20} /><Text style={styles.statValue}>{summary?.total_scans ?? '—'}</Text><Text style={styles.statLabel}>Total Scan</Text></View>
         <View style={styles.statCard}><SymbolView name={{ ios: 'clock', android: 'schedule', web: 'schedule' }} tintColor="#757575" size={20} /><Text style={styles.statValue}>{summary?.pending_scans ?? '—'}</Text><Text style={styles.statLabel}>Menunggu AI</Text></View>
@@ -58,6 +59,6 @@ const styles = StyleSheet.create({
   badge: { color: PRIMARY, backgroundColor: '#E8F5E9', borderRadius: 16, fontSize: 12, fontWeight: '700', paddingHorizontal: 11, paddingVertical: 8 },
   quotaCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 18, marginBottom: 26, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }, row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, cardTitle: { color: '#424242', fontSize: 15, fontWeight: '700' }, quota: { color: PRIMARY, fontSize: 18, fontWeight: '800' },
   progressBackground: { height: 9, backgroundColor: '#E0E0E0', borderRadius: 8, marginTop: 14, overflow: 'hidden' }, progress: { height: '100%', backgroundColor: PRIMARY, borderRadius: 8 }, helper: { color: '#757575', fontSize: 12, marginTop: 10 },
-  sectionTitle: { color: '#212121', fontSize: 18, fontWeight: '800', marginBottom: 12 }, statsRow: { flexDirection: 'row', gap: 12, marginBottom: 20 }, statCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16 }, statValue: { color: '#212121', fontSize: 28, fontWeight: '800', marginTop: 4 }, statLabel: { color: '#757575', fontSize: 13, marginTop: 2 },
+  sectionTitle: { color: '#212121', fontSize: 18, fontWeight: '800', marginBottom: 4 }, summaryPeriod: { color: '#757575', fontSize: 13, marginBottom: 12 }, statsRow: { flexDirection: 'row', gap: 12, marginBottom: 20 }, statCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16 }, statValue: { color: '#212121', fontSize: 28, fontWeight: '800', marginTop: 4 }, statLabel: { color: '#757575', fontSize: 13, marginTop: 2 },
   infoCard: { backgroundColor: '#E8F5E9', borderRadius: 14, padding: 17 }, infoTitle: { color: PRIMARY, fontSize: 15, fontWeight: '800', marginBottom: 5 }, infoText: { color: '#4E6B50', fontSize: 13, lineHeight: 19 },
 });

@@ -60,6 +60,7 @@ function RootLayoutNav() {
           <Stack.Screen name="register" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="result" options={{ title: 'Hasil Deteksi' }} />
+          <Stack.Screen name="payments" options={{ title: 'Pembayaran Sandbox' }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Informasi' }} />
         </Stack>
       </AuthGate>
